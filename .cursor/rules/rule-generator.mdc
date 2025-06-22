@@ -1,0 +1,81 @@
+---
+description: A comprehensive guide and set of rules for creating and managing Cursor Rules.
+globs: 
+alwaysApply: false
+---
+---
+description: A comprehensive guide and set of rules for creating and managing Cursor Rules.
+globs: "**/.cursor/rules/*.mdc"
+alwaysApply: false
+---
+# How to Create Effective Cursor Rules
+
+This document provides a clear guideline on how to properly create and generate Cursor Rules for this project, ensuring they are effective, maintainable, and consistent.
+
+## 1. Core Principles
+
+-   **Purpose**: Rules provide persistent, system-level instructions to the AI. They are used to encode domain-specific knowledge, architectural decisions, and development workflows.
+-   **Conciseness**: Keep rules focused and concise. Aim for under 500 lines. Split large concepts into smaller, composable rules.
+-   **Actionable Language**: Avoid vague guidance. Write rules with clear, direct instructions, as if you were writing a technical design document.
+
+## 2. Rule Structure and Format
+
+All project-specific rules **must** be created in the `.cursor/rules/` directory and use the **MDC (`.mdc`)** format.
+
+### The MDC Format
+
+An MDC file consists of two parts: a metadata block (frontmatter) and a content block, separated by `---`.
+
+```mdc
+---
+# This is the metadata block (frontmatter)
+description: A brief, one-sentence explanation of what this rule does.
+globs: 
+  - "apps/api/src/routes/**/*.ts"
+  - "apps/api/src/services/**/*.ts"
+alwaysApply: false
+---
+
+# This is the content block.
+- Your rule content goes here in Markdown.
+- Use bullet points for clarity.
+
+Provide code examples when helpful.
+```
+
+### Metadata Fields:
+
+-   `description` (Required): A concise explanation of the rule's purpose. This is what the AI uses to decide whether to apply the rule.
+-   `globs` (Optional): An array of file path patterns. The rule will be automatically attached when files matching these patterns are part of the context.
+-   `alwaysApply` (Optional, default: `false`): If set to `true`, the rule will always be included in the model's context. Use this sparingly.
+
+## 3. How to Write Rule Content
+
+-   **Use Markdown**: Write all rule content in standard Markdown for readability.
+-   **Provide Concrete Examples**: When explaining a concept, provide short, clear code snippets to illustrate the correct implementation.
+-   **Reference Files**: To include the full content of a file as context, use the `@` symbol (e.g., `@/path/to/template.ts`). This is extremely useful for providing boilerplate or templates.
+-   **Be Specific**:
+    -   **Bad**: "Make components look good."
+    -   **Good**: "All frontend components must use Tailwind CSS for styling and `lucide-react` for icons."
+
+## 4. How to Create Rules
+
+There are two primary ways to create a rule for this project:
+
+### a) From the Command Palette (Preferred for New Rules)
+
+1.  Press `Cmd + Shift + P` (or `Ctrl + Shift + P` on Windows/Linux).
+2.  Type and select "**New Cursor Rule**".
+3.  Fill out the description and file globs.
+4.  Cursor will create a new `.mdc` file in the correct `.cursor/rules/` directory for you to edit.
+
+### b) Generating from a Chat Conversation
+
+When a chat conversation has resulted in a set of decisions or a clear workflow, you can generate a rule from it directly.
+
+1.  In the chat input, type `/` to bring up the command menu.
+2.  Select "**Generate Cursor Rules**".
+3.  Review the generated rule and save it. This is an excellent way to capture architectural decisions made during a coding session.
+
+By following these guidelines, we can build a robust and maintainable set of rules that will help the AI understand our project's architecture and conventions, leading to more accurate and consistent code generation.
+

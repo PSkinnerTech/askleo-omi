@@ -1,0 +1,93 @@
+---
+description: Follow these rules when working on the backend, which is a Fastify API using Supabase for DB/Auth and Drizzle ORM.
+globs: 
+alwaysApply: false
+---
+---
+description: Follow these rules when working on the backend, which is a Fastify API using Supabase for DB/Auth and Drizzle ORM.
+globs:
+  - apps/api/src/**/*
+  - supabase/functions/**/*
+  - db/schema/**/*
+---
+
+### Backend Development Rules
+
+This project uses a **Fastify API server** for all backend logic. The frontend React application is completely decoupled and communicates with this server via HTTP requests.
+
+### 1. API Routes (Controllers)
+
+All API route handlers should be lean. Their primary responsibility is to handle the request-response cycle, perform validation, and call the appropriate service for business logic.
+
+-   **Location**: API routes should be defined in `apps/api/src/routes/`.
+-   **Authentication**: Every protected route **must** first authenticate the request by validating the JWT from the `Authorization` header. This should be handled by a reusable Fastify plugin or decorator.
+-   **Validation**: Use a library like `zod` to validate incoming request bodies, query parameters, and URL parameters.
+-   **Standard Response**: All API responses should follow a consistent JSON format.
+
+**Example API Response Format:**
+```json
+// Success
+{
+  "success": true,
+  "data": { ... }
+}
+
+// Error
+{
+  "success": false,
+  "error": {
+    "message": "A descriptive error message",
+    "code": "ERROR_CODE"
+  }
+}
+```
+
+### 2. Services
+
+All business logic must reside in service files. Services are responsible for orchestrating tasks and interacting with the database via Drizzle.
+
+-   **Location**: Services should be defined in `apps/api/src/services/`.
+-   **Database Interaction**: Only services should interact directly with the database using the Drizzle client.
+-   **Organization**: Group related functions within a single service file (e.g., `document-service.ts`). Organize functions within the file in CRUD order (Create, Read, Update, Delete).
+
+### 3. Database Schemas
+
+The database schema is the source of truth for all data models.
+
+-   **Location**: All schema definitions must reside in the `db/schema/` directory at the root of the monorepo.
+-   **File Naming**: Use kebab-case for file names (e.g., `documents-schema.ts`).
+-   **Exports**: Export all schemas from `db/schema/index.ts` for easy access.
+-   **Required Columns**: All tables must include `id`, `createdAt`, and `updatedAt` columns.
+-   **User Foreign Key**: When linking a table to a user, the column **must** be a `uuid` that references the `id` in Supabase's `auth.users` table.
+
+**Example of a Correct Schema (`documents-schema.ts`):**
+
+```typescript
+import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { auth } from "./auth-schema"; // Helper for Supabase's auth schema
+
+export const documentsTable = pgTable("documents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  
+  // CORRECT: This is a direct reference to the user's auth ID.
+  userId: uuid("user_id").notNull().references(() => auth.users.id, { onDelete: "cascade" }),
+
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date())
+});
+```
+
+-   **Enums**: Use Drizzle's `pgEnum` for columns that have a small, fixed set of possible values (e.g., `membership`, `document_status`).
+-   **Cascade Deletes**: Use `onDelete: "cascade"` for foreign keys where the child record should be deleted along with the parent (e.g., a user's documents should be deleted when the user is).
+
+### 4. Migrations
+
+-   **Do not write SQL migrations by hand.**
+-   Always modify the TypeScript schema files in `db/schema/` first.
+-   Generate migration files by running `bun run db:generate`.
+-   Apply migrations by running `bun run db:migrate`.

@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Only use `bun`.  Never use `pnpm`, `npm`, `yarn`.

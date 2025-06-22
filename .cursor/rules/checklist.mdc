@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Project Checklist Review
+
+After completing any task, you **MUST** review `docs/checklist.md` to:
+
+1.  Check off the completed item.
+2.  Confirm the next step in the development plan.

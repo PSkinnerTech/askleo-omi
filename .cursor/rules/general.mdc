@@ -1,0 +1,107 @@
+---
+description: 
+globs: **/*
+alwaysApply: false
+---
+---
+description: The master project instructions and general rules for building the Askleo application.
+globs:
+  - "**/*"
+---
+
+# Askleo Project Instructions
+
+### High-Level Goal
+Your goal is to build the Askleo application based on the detailed documentation provided. You must write complete, production-quality code for every step and ensure all tasks are fully completed.
+
+## 1. Overview
+
+Askleo is a **decoupled web application** built with a modern, type-safe stack. It consists of two main parts:
+
+-   A **Vite + React Single-Page Application (SPA)** for the frontend.
+-   A **Fastify API server** for the backend business logic.
+
+## 2. Technology Stack
+
+-   **Frontend**: Vite, React, TypeScript, Tailwind CSS
+-   **Backend**: Fastify, TypeScript, Node.js
+-   **Database**: Supabase (PostgreSQL) with Drizzle ORM
+-   **Authentication**: Supabase Auth
+-   **Package Manager**: Bun
+-   **Deployment**: Fly.io
+
+## 3. Project Structure
+
+The project is a **monorepo** managed with `bun` workspaces.
+
+```
+/
+|-- apps/
+|   |-- api/              # The backend Fastify API server
+|   |   |-- src/
+|   |   |   |-- routes/
+|   |   |   |-- services/
+|
+|-- frontend/             # The frontend Vite + React SPA
+|   |-- src/
+|   |   |-- components/
+|   |   |-- pages/
+|   |   |-- hooks/
+|
+|-- db/                    # Drizzle ORM configuration and schemas
+|   |-- schema/
+|   |-- migrations/
+|
+|-- packages/
+|   |-- types/            # Shared TypeScript types for frontend and backend
+```
+
+## 4. General Development Rules
+
+-   **File Naming**: All files and folders must be named using `kebab-case`.
+-   **Package Manager**: This project uses **`bun` exclusively**. Do not use `npm`, `pnpm`, or `yarn`.
+-   **Styling**: Use **Tailwind CSS** for all styling. Do not write custom CSS files.
+-   **Icons**: Use the **`lucide-react`** library for all icons.
+-   **UI Components**: Use the pre-configured `shadcn/ui` components for all standard UI elements.
+
+## 5. Environment Variable Rules
+
+-   **Backend (`apps/api/.env`)**: All backend environment variables are stored here. They are accessed via `process.env`.
+-   **Frontend (`frontend/.env`)**: All frontend environment variables are stored here. To expose a variable to the browser, it **must** be prefixed with `VITE_` (e.g., `VITE_SUPABASE_URL`).
+
+## 6. Shared TypeScript Types
+
+To ensure type safety between the frontend and backend, all shared types must be defined in the `packages/types` directory.
+
+-   **Location**: `packages/types/src/index.ts`
+-   **Usage**: Both the frontend and backend apps will import shared types directly from this package.
+
+### Standard API Response Type
+
+All backend API routes **must** return a standardized JSON response object. This type should be defined in the shared types package.
+
+**Example API Response Type (`packages/types/src/api-types.ts`):**
+
+```typescript
+export type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: { message: string; code?: string } };
+```
+
+## 7. Backend Rules (`apps/api/`)
+
+-   **Controllers (Routes)**: Keep route handlers lean. Their only job is to handle the request/response cycle, validate input, and call a service.
+-   **Services**: All business logic, including all database interactions with Drizzle, **must** be placed in service files.
+-   **Authentication**: All protected API routes must validate the user's JWT using a reusable Fastify plugin or decorator.
+
+## 8. Frontend Rules (`frontend/`)
+
+-   **Routing**: All routing is client-side and must be handled by `react-router-dom`.
+-   **Data Fetching**: All server state (data from the API) **must** be managed with `@tanstack/react-query`.
+    -   Use `useQuery` in page-level components to fetch data.
+    -   Use `useMutation` to handle data creation, updates, and deletions.
+    -   On mutation success, invalidate the relevant queries to keep the UI in sync.
+-   **State Management**:
+    -   Use React Context for global UI state (e.g., the authenticated user session).
+    -   Use `@tanstack/react-query` for all server state.
+    -   Use `useState` for simple, local component state.

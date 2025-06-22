@@ -1,0 +1,67 @@
+---
+description: Follow these rules when working on authentication using Supabase Auth.
+globs: 
+alwaysApply: false
+---
+---
+description: Follow these rules when working on authentication using Supabase Auth.
+globs: supabase/functions/**/*,frontend/src/hooks/useAuth.ts,frontend/src/pages/auth/*
+---
+
+### Supabase Auth Rules
+
+This project uses **Supabase Auth** as the single source of truth for user authentication. All authentication logic is handled via Supabase Edge Functions, not directly in the client.
+
+#### 1. Backend: Protecting Edge Functions
+
+Every Supabase Edge Function that requires authentication **must** perform an authentication check as its first step.
+
+-   Create a Supabase client using the request's `Authorization` header.
+-   Call `supabase.auth.getUser()` to validate the JWT and retrieve the user.
+-   If no user is found, return a `401 Unauthorized` error immediately.
+
+**Example of a protected Edge Function:**
+
+```typescript
+// supabase/functions/get-document/index.ts
+import { serve } from "https://deno.land/std/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js";
+
+serve(async (req) => {
+  // Authentication check is the first step
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: req.headers.get("Authorization")! } } }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  }
+
+  // ... rest of the function logic ...
+});
+```
+
+#### 2. Frontend: UI and State Management
+
+-   **Auth UI**: All authentication UI (login forms, sign-up forms) must be custom-built React components. They should not call the `supabase.auth` methods directly.
+-   **API Calls**: To perform an auth action (like sign-in or sign-out), the UI component must make a `fetch` request to the corresponding Supabase Edge Function (e.g., `POST /api/sign-in`).
+-   **Auth Context**: A global `AuthProvider` and `useAuth()` hook must be used to manage and provide the user's session state to all components in the React application. This provider should listen to Supabase's `onAuthStateChange` event to keep the session up-to-date in real-time.
+
+#### 3. Database Integration
+
+-   The `profiles` table in the database is an **extension** of the Supabase `auth.users` table.
+-   When a new user signs up, a corresponding record must be created in the `profiles` table.
+-   The `profiles.id` column **must** be the same UUID as the user's `id` from the `auth.users` table.
+-   The schema must enforce this link with a foreign key relationship and `onDelete: "cascade"` to ensure data integrity when a user is deleted.
+
+```typescript
+// Example from db/schema/profiles-schema.ts
+export const profilesTable = pgTable("profiles", {
+  id: uuid("id").primaryKey().references(() => auth.users.id, { onDelete: "cascade" }),
+  // ...
+});
+```

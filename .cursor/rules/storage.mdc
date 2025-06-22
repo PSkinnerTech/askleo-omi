@@ -1,0 +1,151 @@
+---
+description: Follow these rules when working with Supabase Storage in the new Vite + Fastify architecture.
+globs: 
+alwaysApply: false
+---
+---
+description: Follow these rules when working with Supabase Storage in the new Vite + Fastify architecture.
+globs:
+  - apps/api/src/services/storage-service.ts
+  - apps/api/src/routes/storage/*
+  - frontend/src/components/file-uploader.tsx
+---
+
+# Supabase Storage Rules
+
+This project uses **Supabase Storage** for all file uploads, downloads, and management. All storage operations must be routed through the backend **Fastify API** to ensure security and proper validation.
+
+## 1. General Rules
+
+-   **Environment Variables**: Bucket names must be stored in environment variables on the backend server (e.g., `STORAGE_AVATAR_BUCKET`) and should never be hardcoded.
+-   **Backend-Only Operations**: All interactions with the Supabase Storage client (e.g., `supabase.storage.from(...)`) **must** occur within the backend Fastify API. The frontend should never interact with Supabase Storage directly.
+-   **Validation First**: Always perform validation (file size, MIME type) in the API route *before* attempting the storage operation.
+-   **Content-Type**: Always set the `contentType` header when uploading files to ensure they are served correctly by the browser.
+
+## 2. Organization
+
+### Buckets
+
+-   **Naming**: Name buckets in `kebab-case` (e.g., `user-avatars`, `medical-documents`).
+-   **Separation**: Create separate buckets for different types of files (`avatars`, `documents`, `attachments`).
+-   **Security**: Buckets should be **private** by default. Public access should only be enabled if absolutely necessary.
+-   **RLS Policies**: Implement Row Level Security (RLS) policies on buckets to restrict access to authorized users. You must provide the SQL scripts for me to review before I can tell you to apply them in the Supabase SQL editor.
+
+### File Structure
+
+-   **Path Naming**: Use a predictable, collision-resistant naming pattern for all file paths.
+-   **Structure**: `{bucket}/{userId}/{purpose}/{filename}`
+    -   Example: `user-avatars/123e4567-e89b-12d3-a456-426614174000/profile.jpg`
+-   **Timestamps**: For files that require versioning, include a timestamp in the filename.
+    -   Example: `medical-documents/userId-abc/soap-notes/2024-10-27-note.pdf`
+
+## 3. Backend API & Service Logic
+
+All storage operations must be encapsulated in the backend.
+
+-   **API Routes**: Create dedicated API routes for storage operations (e.g., `POST /api/storage/upload`, `GET /api/storage/download/:path`).
+-   **Services**: All core logic should reside in a `storage-service.ts` file. This service will contain the functions that interact with the Supabase client.
+-   **Authentication**: Every storage-related API route must be protected and must validate the user's JWT to get their `userId`.
+
+### Example: Upload Service Function
+
+This function would live in `apps/api/src/services/storage-service.ts`.
+
+```typescript
+import { supabase } from "../lib/supabase"; // Your admin Supabase client
+
+export async function uploadFile(
+  userId: string,
+  bucket: string,
+  filePath: string,
+  file: Buffer,
+  contentType: string
+): Promise<{ path: string }> {
+  // The filePath should already include the user-specific path, e.g., `${userId}/avatar.png`
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(filePath, file, {
+      upsert: true, // Use upsert to allow overwriting
+      contentType,
+    });
+
+  if (error) {
+    // Log the error and throw a custom error for the route to handle
+    console.error("Supabase Storage Error:", error);
+    throw new Error("Failed to upload file to storage.");
+  }
+
+  return { path: data.path };
+}
+```
+
+## 4. Frontend File Handling
+
+The frontend is responsible for gathering the file from the user and sending it to the backend API.
+
+### Upload Rules
+
+-   **Use `fetch`**: The frontend must use a `POST` request with a `FormData` body to send the file to the backend API endpoint.
+-   **Client-Side Validation**: Perform initial, non-critical validation in the browser (e.g., checking file extension) to provide immediate feedback to the user, but always rely on the backend for authoritative validation.
+
+**Example: Frontend Upload Logic**
+
+```typescript
+async function handleFileUpload(file: File) {
+  // Perform basic client-side validation first
+  if (file.size > 10 * 1024 * 1024) { // 10MB limit
+    alert("File is too large.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("purpose", "avatar"); // Send metadata to the backend
+
+  try {
+    const response = await fetch("/api/storage/upload", {
+      method: "POST",
+      headers: {
+        // The Supabase auth token must be included
+        Authorization: `Bearer ${supabase.auth.session()?.access_token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("Upload failed");
+    }
+
+    const result = await response.json();
+    console.log("File uploaded successfully:", result.data.path);
+  } catch (error) {
+    console.error(error);
+  }
+}
+```
+
+### Download Rules
+
+-   **Use Signed URLs**: For private files, the frontend must request a short-lived signed URL from a backend API endpoint. It should never try to construct the download URL itself.
+-   The backend endpoint will call `supabase.storage.from(bucket).createSignedUrl(path, expiresIn)`.
+
+## 5. Security: RLS Policy Example
+
+All buckets containing user-specific data **must** be protected with RLS policies.
+
+**Example RLS Policy for User Avatars:**
+This policy allows a user to view any avatar but only upload/update/delete their own.
+
+```sql
+-- Allow public read access to all avatars
+CREATE POLICY "Allow public read access"
+ON storage.objects FOR SELECT
+USING ( bucket_id = 'user-avatars' );
+
+-- Restrict mutations to the owner of the file
+CREATE POLICY "Allow owner to manage their own avatar"
+ON storage.objects FOR INSERT, UPDATE, DELETE
+USING ( auth.uid() = (storage.foldername(name))[1] )
+WITH CHECK ( auth.uid() = (storage.foldername(name))[1] );
+```
+This ensures that `userId` is the first folder in the file path, which is enforced by the backend service.

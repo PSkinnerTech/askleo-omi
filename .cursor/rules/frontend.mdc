@@ -1,0 +1,134 @@
+---
+description: Follow these rules when working on the frontend, which is a Vite + React SPA using TypeScript, Tailwind CSS, and TanStack Query.
+globs: 
+alwaysApply: false
+---
+---
+description: Follow these rules when working on the frontend, which is a Vite + React SPA using TypeScript, Tailwind CSS, and TanStack Query.
+globs:
+  - frontend/src/**/*
+  - src/**/*
+---
+
+### Frontend Development Rules
+
+This project is a **Single-Page Application (SPA)** built with Vite, React, and TypeScript. All components are client-side. There are no Server Components.
+
+#### 1. General Rules
+
+-   **Icons**: Use `lucide-react` for all iconography.
+-   **Styling**: Use Tailwind CSS for all styling. Custom CSS should be avoided unless absolutely necessary.
+-   **Component Library**: Use the pre-configured `shadcn/ui` components for all standard UI elements (buttons, forms, dialogs, etc.). Do not modify the base `shadcn/ui` components directly.
+
+#### 2. Component Architecture
+
+-   **File Naming**: All component files must be named using `kebab-case` (e.g., `document-editor.tsx`).
+-   **Organization**:
+    -   **Shared Components**: Reusable components shared across the entire application must be placed in `frontend/src/components/`.
+    -   **Page-Specific Components**: Components used only by a single page (route) should be placed in a `_components` sub-directory within that page's folder (e.g., `frontend/src/pages/document/_components/`).
+-   **State Management**:
+    -   **Global State**: Use React Context for global state that is shared across many components (e.g., the `AuthProvider` for the user session).
+    -   **API/Server State**: Use `@tanstack/react-query` for all server state management (data fetching, caching, mutations).
+    -   **Local State**: Use standard React hooks (`useState`, `useReducer`) for component-level UI state.
+
+#### 3. Data Fetching & Mutations
+
+All data fetching and mutations are handled on the client-side via API calls to the backend. This project mandates the use of `@tanstack/react-query` to manage this server state.
+
+-   **Data Fetching**:
+    -   Data fetching **must** be done in top-level "page" components (e.g., `DocumentPage.tsx`).
+    -   Use the `useQuery` hook to fetch data. This hook provides loading, error, and success states that must be handled in the UI.
+    -   Data should then be passed down to child display components via props.
+
+-   **Data Mutations**:
+    -   Mutations (Create, Update, Delete) **must** be handled using the `useMutation` hook from `@tanstack/react-query`.
+    -   On a successful mutation, use the `queryClient` to invalidate the relevant queries, which will trigger a re-fetch of the data and keep the UI in sync with the backend.
+
+#### 4. Examples
+
+**Example of a Page Component Fetching Data:**
+
+```tsx
+// frontend/src/pages/document-page.tsx
+import { useQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
+import { api } from "../services/api"; // A helper for API calls
+import { DocumentEditor } from "./_components/document-editor";
+import { DocumentSkeleton } from "./_components/document-skeleton";
+
+export function DocumentPage() {
+  const { id } = useParams<{ id: string }>();
+
+  const { data: document, isLoading, isError } = useQuery({
+    queryKey: ["document", id],
+    queryFn: () => api.getDocument(id!),
+    enabled: !!id, // Only run the query if the ID exists
+  });
+
+  if (isLoading) {
+    return <DocumentSkeleton />;
+  }
+
+  if (isError) {
+    return <div>Error loading document.</div>;
+  }
+
+  // Pass the fetched data down as props
+  return <DocumentEditor initialDocument={document} />;
+}
+```
+
+**Example of a Display Component Receiving Data:**
+
+```tsx
+// frontend/src/pages/document/_components/document-editor.tsx
+
+interface DocumentEditorProps {
+  initialDocument: Document; // Type imported from a types file
+}
+
+export function DocumentEditor({ initialDocument }: DocumentEditorProps) {
+  // This component is "dumb" and simply renders the data it receives.
+  // It manages its own UI state (like the editor's content).
+  const [content, setContent] = useState(initialDocument.content);
+
+  return (
+    <div>
+      <h1>{initialDocument.title}</h1>
+      <textarea value={content} onChange={(e) => setContent(e.target.value)} />
+    </div>
+  );
+}
+```
+
+**Example of a Component Performing a Mutation:**
+
+```tsx
+// frontend/src/components/top-nav.tsx
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "../services/api";
+import { useNavigate } from "react-router-dom";
+
+export function TopNav() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const createDocumentMutation = useMutation({
+    mutationFn: api.createDocument,
+    onSuccess: (newDocument) => {
+      // Invalidate the list of all documents to trigger a re-fetch
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      // Navigate to the new document's page
+      navigate(`/document/${newDocument.id}`);
+    },
+  });
+
+  return (
+    <nav>
+      <button onClick={() => createDocumentMutation.mutate({ title: "Untitled" })}>
+        New Document
+      </button>
+    </nav>
+  );
+}
+```
